@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Booking Pass</title>
+<meta name="description" content="Every booking for the trip — confirmation numbers and addresses one tap away.">
+<meta name="theme-color" content="#F6F5F1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Booking Pass">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Keep these two URLs identical to FONT_CSS in sw.js so they're cached for offline use. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@24,400,1,0&icon_names=add,call,check,chevron_left,close,cloud_done,cloud_off,confirmation_number,content_copy,content_paste,delete,directions_car,edit,expand_more,flight,fullscreen,hotel,ios_share,kayaking,local_activity,luggage,navigation,restaurant,sticky_note_2&display=block">
+<style>
+  :root {
+    --screen: oklch(0.97 0.005 80);
+    --backdrop: oklch(0.88 0.006 80);
+    --ink: #15140f;
+    --text: #2a2820;
+    --text-2: #3a382f;
+    --muted: #6b6760;
+    --muted-2: #7a766d;
+    --faint: #a8a39a;
+    --faint-2: #b0aaa0;
+    --inactive: #8a857c;
+    --border: oklch(0.9 0.005 80);
+    --dash: oklch(0.88 0.005 80);
+    --track: oklch(0.93 0.005 80);
+    --soft: oklch(0.94 0.004 80);
+    --outline: oklch(0.85 0.005 80);
+    --manila: oklch(0.46 0.035 70);
+    --success: oklch(0.55 0.1 150);
+    --danger: oklch(0.55 0.16 28);
+    --filled: oklch(0.97 0.045 95);
+    --sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --col: 412px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  html, body { margin: 0; background: var(--backdrop); }
+  body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  html.locked, html.locked body { overflow: hidden; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { appearance: none; -webkit-appearance: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  a { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .ic {
+    font-family: 'Material Symbols Sharp'; font-weight: normal; font-style: normal;
+    line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap;
+    direction: ltr; font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased;
+    display: inline-block; width: 1em; height: 1em; overflow: hidden; flex: none;
+  }
+
+  /* ---------- frame ---------- */
+  .stage { min-height: 100vh; min-height: 100dvh; display: flex; justify-content: center; }
+  .col { position: relative; width: 100%; max-width: var(--col); min-height: 100vh; min-height: 100dvh; background: var(--screen); box-shadow: 0 0 60px rgba(0,0,0,.12); }
+  .fixed-col { position: fixed; left: 0; right: 0; margin: 0 auto; max-width: var(--col); }
+  @media (max-width: 600px) {
+    html, body { background: var(--screen); }
+    .col, .fixed-col { max-width: none; box-shadow: none; }
+  }
+  .screen { padding: calc(14px + var(--safe-top)) 16px calc(104px + var(--safe-bottom)); }
+
+  /* ---------- header ---------- */
+  .head { padding: 8px 2px 18px; }
+  .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .head-text { flex: 1; min-width: 0; }
+  .title { font: 800 28px/1 var(--sans); letter-spacing: -0.6px; color: var(--ink); }
+  .meta { font: 500 12px/1.2 var(--mono); color: var(--muted-2); margin-top: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .trip-switch { border: 0; background: transparent; padding: 8px 0; margin: -8px 0; display: flex; align-items: center; gap: 2px; max-width: 100%; text-align: left; }
+  .trip-switch .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-bottom: 2px; }
+  .trip-switch .ic { font-size: 28px; color: var(--muted-2); }
+  .round-btn { border: 0; background: var(--soft); width: 44px; height: 44px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--ink); }
+  .round-btn .ic { font-size: 24px; }
+
+  /* ---------- sort ---------- */
+  .label { display: block; font: 700 9px/1 var(--sans); letter-spacing: 1.5px; text-transform: uppercase; color: var(--faint); margin: 0 2px 8px; }
+  .seg { display: flex; gap: 4px; background: var(--track); padding: 4px; border-radius: 11px; margin-bottom: 20px; }
+  .seg-btn { flex: 1; height: 36px; border: 0; border-radius: 8px; font: 700 11px/1 var(--sans); letter-spacing: 0.3px; background: transparent; color: var(--inactive); }
+  .seg-btn.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
+
+  /* ---------- booking card ---------- */
+  .card { position: relative; background: #fff; border: 1px solid var(--border); border-radius: 14px; margin: 0 0 16px; box-shadow: 0 1px 2px rgba(0,0,0,.05); overflow: hidden; }
+  .card-top { display: flex; }
+  .rail { width: 56px; flex: none; background: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 0; color: #fff; }
+  .rail .ic { font-size: 29px; }
+  .rail-label { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 10px/1 var(--sans); letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
+  .card-body { position: relative; flex: 1; min-width: 0; padding: 14px 16px 0; }
+  .card-body.solo { padding-bottom: 10px; }
+  .b-name { font: 700 18px/1.2 var(--sans); letter-spacing: -0.2px; color: var(--ink); padding-right: 30px; overflow-wrap: anywhere; }
+  .b-when { font: 500 12px/1.3 var(--mono); color: var(--muted); margin-top: 6px; }
+  .edit-btn { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0; background: transparent; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--faint-2); }
+  .edit-btn .ic { font-size: 19px; }
+  .conf-btn { border: 0; background: transparent; padding: 0; margin: 14px 0 6px; display: block; width: 100%; text-align: left; }
+  .conf-btn > span { display: block; }
+  .conf-label { font: 700 9px/1 var(--sans); letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); }
+  .conf-num { font: 700 32px/1 var(--mono); letter-spacing: 1px; color: var(--ink); margin-top: 7px; word-break: break-all; }
+  .conf-btn .conf-hint { display: flex; align-items: center; gap: 4px; font: 600 10px/1 var(--sans); color: var(--faint); margin-top: 9px; }
+  .conf-hint .ic { font-size: 13px; }
+  .conf-none { font: 500 12px/1.3 var(--mono); color: var(--faint); margin: 14px 0 6px; }
+  .perf { position: relative; margin: 8px 0 0; }
+  .perf::before { content: ''; display: block; border-top: 2px dashed var(--dash); margin: 0 14px; }
+  .notch { position: absolute; top: -8px; width: 16px; height: 16px; border-radius: 50%; background: var(--screen); }
+  .notch.l { left: -8px; } .notch.r { right: -8px; }
+  .actions { padding: 15px 16px 16px; display: flex; flex-direction: column; gap: 11px; }
+  .btn-row { display: flex; gap: 10px; }
+  .btn { flex: 1; height: 50px; display: flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none; border-radius: 10px; font: 700 14px/1 var(--sans); letter-spacing: 0.3px; }
+  .btn .ic { font-size: 20px; }
+  .btn-nav { background: var(--accent); color: #fff; }
+  .btn-call { background: #fff; color: var(--ink); border: 1.5px solid var(--outline); }
+  .addr { font: 500 13px/1.45 var(--mono); color: var(--text-2); text-decoration: none; display: block; overflow-wrap: anywhere; }
+
+  /* ---------- buttons & empty states ---------- */
+  .big-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; margin-bottom: 20px; background: var(--ink); color: #fff; border: 0; border-radius: 12px; font: 700 14px/1 var(--sans); letter-spacing: 0.3px; }
+  .big-btn .ic { font-size: 20px; }
+  .empty { text-align: center; padding: 40px 12px 8px; }
+  .empty > .ic { font-size: 44px; color: #cfc9bf; }
+  .empty-title { font: 600 14px/1.4 var(--sans); color: var(--muted-2); margin-top: 12px; }
+  .empty-sub { font: 400 13px/1.5 var(--sans); color: var(--faint); margin-top: 4px; }
+  .empty .big-btn { margin: 22px 0 0; }
+
+  /* ---------- notes list ---------- */
+  .note-card { text-align: left; width: 100%; padding: 0; background: #fff; border: 1px solid var(--border); border-radius: 14px; margin: 0 0 14px; box-shadow: 0 1px 2px rgba(0,0,0,.05); overflow: hidden; display: flex; }
+  .note-rail { width: 48px; flex: none; background: var(--manila); display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 0; color: #fff; }
+  .note-rail .ic { font-size: 24px; }
+  .note-rail .rail-label { font-size: 9px; }
+  .note-main { flex: 1; min-width: 0; padding: 14px 16px; }
+  .note-main > span { display: block; }
+  .note-title { font: 700 16px/1.25 var(--sans); letter-spacing: -0.2px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .note-preview { font: 400 13px/1.5 var(--sans); color: var(--muted-2); margin-top: 6px; display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .note-date { font: 500 10px/1 var(--mono); color: var(--faint-2); margin-top: 10px; letter-spacing: 0.5px; }
+
+  /* ---------- bottom nav ---------- */
+  .nav { bottom: 0; z-index: 40; height: calc(72px + var(--safe-bottom)); padding-bottom: calc(8px + var(--safe-bottom)); background: rgba(255,255,255,0.94); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; }
+  .nav-btn { flex: 1; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding-top: 8px; color: var(--faint-2); font: 700 10px/1 var(--sans); letter-spacing: 0.5px; }
+  .nav-btn .ic { font-size: 25px; }
+  .nav-btn.on { color: var(--ink); }
+
+  /* ---------- full-screen sheets ---------- */
+  .sheet { top: 0; bottom: 0; background: #fff; display: flex; flex-direction: column; animation: sheet-in .18s ease-out; }
+  @keyframes sheet-in { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+  .bar { flex: none; height: calc(8px + var(--safe-top)); background: var(--accent, var(--ink)); }
+  .topbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; min-height: 60px; border-bottom: 1px solid var(--track); }
+  .topbar-title { font: 700 15px/1.2 var(--sans); color: var(--ink); text-align: center; }
+  .link-btn { border: 0; background: transparent; display: flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 6px; font: 700 14px/1 var(--sans); color: var(--ink); }
+  .link-btn .ic { font-size: 22px; }
+  .save-btn { border: 0; background: var(--ink); color: #fff; border-radius: 10px; height: 40px; padding: 0 18px; font: 700 13px/1 var(--sans); letter-spacing: 0.3px; }
+  .save-btn:disabled { background: var(--track); color: var(--faint); cursor: default; }
+  .icon-btn { border: 0; background: transparent; width: 44px; height: 44px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--faint-2); }
+  .icon-btn .ic { font-size: 22px; }
+  .icon-btn.danger { color: var(--danger); }
+  .sheet-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 18px 16px 14px 18px; }
+  .sheet-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 18px 16px calc(32px + var(--safe-bottom)); }
+  .sheet-head + .sheet-body { padding-top: 4px; }
+
+  /* ---------- confirmation overlay ---------- */
+  .ov-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 22px 24px; }
+  .ov-titles { min-width: 0; }
+  .ov-name { font: 700 15px/1.2 var(--sans); color: var(--ink); }
+  .ov-type { font: 700 10px/1 var(--sans); letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); margin-top: 6px; }
+  .ov-num-wrap { flex: 1; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; padding: 16px; width: 100%; }
+  .ov-num { font-family: var(--mono); font-weight: 700; line-height: 1.05; letter-spacing: 5px; color: #000; text-align: center; word-break: break-all; }
+  .ov-foot { flex: none; padding: 24px 24px calc(24px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 12px; }
+  .copy-btn { height: 56px; border: 0; background: var(--ink); color: #fff; border-radius: 12px; font: 700 16px/1 var(--sans); letter-spacing: 0.3px; display: flex; align-items: center; justify-content: center; gap: 9px; }
+  .copy-btn .ic { font-size: 21px; }
+  .ov-cap { text-align: center; font: 500 11px/1 var(--sans); color: var(--faint); }
+
+  /* ---------- note editor ---------- */
+  .saved { display: flex; align-items: center; gap: 6px; font: 600 10px/1 var(--mono); color: var(--faint); letter-spacing: 0.5px; }
+  .saved .ic { font-size: 14px; color: var(--success); }
+  .saved.bad, .saved.bad .ic { color: var(--danger); }
+  .note-title-input { flex: none; width: 100%; border: 0; outline: 0; background: transparent; padding: 20px 22px 8px; font: 800 24px/1.2 var(--sans); letter-spacing: -0.4px; color: var(--ink); }
+  .note-body-input { flex: 1; width: 100%; border: 0; outline: 0; resize: none; background: transparent; padding: 8px 22px calc(28px + var(--safe-bottom)); font: 400 16px/1.6 var(--sans); color: var(--text); }
+
+  /* ---------- forms ---------- */
+  .field { display: block; margin-bottom: 18px; }
+  .input { display: block; width: 100%; height: 50px; border: 1.5px solid var(--outline); border-radius: 10px; background: #fff; padding: 0 14px; font: 500 16px/1.2 var(--sans); color: var(--ink); outline: none; transition: background-color .4s; }
+  .input:focus { border-color: var(--ink); }
+  .input::placeholder { color: var(--faint-2); font-weight: 400; }
+  .input.mono { font-family: var(--mono); }
+  .input.conf { font: 700 20px/1 var(--mono); letter-spacing: 1px; }
+  .input.big { font: 800 22px/1 var(--sans); letter-spacing: -0.3px; height: 56px; }
+  .input.filled { background: var(--filled); }
+  textarea.input { height: auto; padding: 12px 14px; line-height: 1.45; resize: none; }
+  input[type=date].input, input[type=time].input { -webkit-appearance: none; appearance: none; text-align: left; }
+  input.input::-webkit-date-and-time-value { text-align: left; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > * { flex: 1; min-width: 0; }
+  .types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .type-chip { height: 46px; border: 1.5px solid var(--outline); background: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; font: 700 12px/1 var(--sans); color: var(--muted); white-space: nowrap; }
+  .type-chip .ic { font-size: 18px; color: var(--chip); }
+  .type-chip.on { background: var(--chip); border-color: var(--chip); color: #fff; }
+  .type-chip.on .ic { color: #fff; }
+  .paste { border: 1.5px dashed var(--outline); border-radius: 12px; padding: 14px; margin-bottom: 24px; background: var(--screen); }
+  .paste-head { display: flex; align-items: center; gap: 8px; font: 700 14px/1.2 var(--sans); color: var(--ink); }
+  .paste-head .ic { font-size: 20px; }
+  .paste-sub { font: 400 13px/1.45 var(--sans); color: var(--muted-2); margin: 6px 0 12px; }
+  .paste-text { min-height: 92px; }
+  .small-btn { margin-top: 10px; width: 100%; height: 44px; border: 0; border-radius: 10px; background: var(--ink); color: #fff; font: 700 13px/1 var(--sans); letter-spacing: 0.3px; }
+  .paste-result { font: 600 12px/1.45 var(--mono); color: var(--muted); }
+  .paste-result:not(:empty) { margin-top: 12px; }
+  .paste-result.ok { color: oklch(0.45 0.1 150); }
+  .paste-result.warn { color: var(--danger); }
+  .paste-result .ic { font-size: 15px; vertical-align: -3px; margin-right: 4px; }
+  .danger-btn { width: 100%; height: 50px; margin-top: 10px; border: 1.5px solid oklch(0.85 0.06 28); background: #fff; color: var(--danger); border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 7px; font: 700 13px/1 var(--sans); letter-spacing: 0.3px; }
+  .danger-btn .ic { font-size: 19px; }
+  .danger-cap { font: 400 12px/1.45 var(--sans); color: var(--faint); text-align: center; margin: 10px 0 0; }
+
+  /* ---------- trips sheet ---------- */
+  .trip-row { display: flex; align-items: center; background: #fff; border: 1px solid var(--border); border-radius: 14px; margin: 0 0 12px; box-shadow: 0 1px 2px rgba(0,0,0,.05); padding-right: 6px; }
+  .trip-row.current { border: 1.5px solid var(--ink); }
+  .trip-main { flex: 1; min-width: 0; border: 0; background: transparent; text-align: left; padding: 15px 4px 15px 16px; }
+  .trip-main > span { display: block; }
+  .trip-name { display: flex !important; align-items: center; gap: 6px; font: 700 18px/1.2 var(--sans); letter-spacing: -0.2px; color: var(--ink); }
+  .trip-name .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trip-name .ic { font-size: 18px; color: var(--success); }
+  .trip-meta { font: 500 11px/1.2 var(--mono); color: var(--muted-2); margin-top: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .label-gap { margin-top: 24px; }
+  .hint { display: flex; gap: 12px; align-items: flex-start; margin-top: 28px; padding: 14px; border-radius: 12px; background: var(--screen); font: 400 13px/1.5 var(--sans); color: var(--muted); }
+  .hint .ic { font-size: 22px; color: var(--ink); margin-top: 1px; }
+  .hint b { color: var(--ink); }
+
+  /* ---------- toast ---------- */
+  .toast { position: fixed; left: 50%; bottom: calc(90px + var(--safe-bottom)); z-index: 200; transform: translate(-50%, 16px); max-width: calc(100% - 32px); background: var(--ink); color: #fff; padding: 12px 16px; border-radius: 10px; font: 600 13px/1.35 var(--sans); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<div class="stage"><div class="col" id="app"></div></div>
+<div id="layer"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px;font-family:sans-serif">Booking Pass needs JavaScript turned on.</p></noscript>
+
+<script src="parse.js"></script>
+<script>
+'use strict';
+
+const STORE_KEY = 'booking-pass-v1';
+const INK = '#15140f';
+const MANILA = 'oklch(0.46 0.035 70)';
+
+// Booking types, in "BY TYPE" order.
+const TYPES = {
+  flight: { label: 'Flight', chip: 'Flight', icon: 'flight', accent: 'oklch(0.52 0.16 28)', timeWord: 'departs', timeLabel: 'Departs', example: 'Delta DL 1492 · SFO→AUS' },
+  car: { label: 'Rental Car', chip: 'Rental car', icon: 'directions_car', accent: 'oklch(0.52 0.13 155)', timeWord: 'pickup', timeLabel: 'Pick-up', example: 'Hertz — Austin' },
+  hotel: { label: 'Hotel', chip: 'Hotel', icon: 'hotel', accent: 'oklch(0.52 0.13 255)', timeWord: 'check-in', timeLabel: 'Check-in', example: 'Hotel Saint Cecilia' },
+  dinner: { label: 'Dinner', chip: 'Dinner', icon: 'restaurant', accent: 'oklch(0.54 0.12 70)', timeWord: '', timeLabel: 'Time', example: 'Franklin Barbecue' },
+  tour: { label: 'Tour', chip: 'Tour', icon: 'kayaking', accent: 'oklch(0.52 0.15 300)', timeWord: '', timeLabel: 'Time', example: 'Lady Bird Lake Kayak Tour' },
+  other: { label: 'Other', chip: 'Other', icon: 'local_activity', accent: 'oklch(0.47 0.03 250)', timeWord: '', timeLabel: 'Time', example: 'Amtrak to Portland' },
+};
+const TYPE_ORDER = Object.keys(TYPES);
+
+// ---------- helpers ----------
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ic = (name, cls = '') => `<span class="ic ${cls}" aria-hidden="true">${name}</span>`;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const pad = (n) => String(n).padStart(2, '0');
+const typeOf = (b) => TYPES[b.type] || TYPES.other;
+
+function todayYMD() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function parseYMD(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function fmtTime(hm) {
+  let [h, m] = hm.split(':').map(Number);
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${pad(m)} ${ap}`;
+}
+function fmtShort(ts) {
+  try { return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+  catch (e) { return ''; }
+}
+function whenLine(b) {
+  const parts = [];
+  if (b.date) parts.push(parseYMD(b.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', ''));
+  if (b.time) {
+    const word = typeOf(b).timeWord;
+    parts.push((word ? word + ' ' : '') + fmtTime(b.time));
+  }
+  return parts.join(' · ');
+}
+const mapUrl = (address) => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(address);
+const telUrl = (phone) => 'tel:' + phone.replace(/[^0-9+]/g, '');
+
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+// ---------- data ----------
+
+function sampleTrip() {
+  const now = Date.now();
+  return {
+    id: uid(), name: 'Austin', created: now,
+    bookings: [
+      { id: uid(), type: 'flight', name: 'Delta DL 1492 · SFO→AUS', date: '2026-06-18', time: '09:05', conf: 'GKZ4QP', address: '1 John Glenn Ave, San Francisco, CA 94128', phone: '+1 800-555-0199' },
+      { id: uid(), type: 'car', name: 'Hertz — Austin AUS', date: '2026-06-18', time: '14:30', conf: 'H7X92K4', address: '3600 Presidential Blvd, Austin, TX 78719', phone: '+1 512-555-0142' },
+      { id: uid(), type: 'hotel', name: 'Hotel Saint Cecilia', date: '2026-06-18', time: '15:00', conf: 'SC-48820', address: '112 Academy Dr, Austin, TX 78704', phone: '+1 512-555-0188' },
+      { id: uid(), type: 'dinner', name: 'Franklin Barbecue', date: '2026-06-20', time: '19:30', conf: 'RZ-7741', address: '900 E 11th St, Austin, TX 78702', phone: '+1 512-555-0153' },
+      { id: uid(), type: 'tour', name: 'Lady Bird Lake Kayak Tour', date: '2026-06-19', time: '10:00', conf: 'LBK-3098', address: '2418 Stratford Dr, Austin, TX 78746', phone: '+1 512-555-0176' },
+    ],
+    notes: [
+      { id: uid(), title: 'Check-out — Hotel Saint Cecilia',
+        body: 'Check-out is 12:00 PM (late check-out until 2 PM on request).\n\nLeave room keys on the desk. Validated parking ticket is in the welcome folder. Text the front desk at 512-555-0188 for a bell cart.\n\nMini-bar charges settle to the card on file.',
+        updated: now - 1000 * 60 * 60 * 5 },
+      { id: uid(), title: "Sarah's Austin tips",
+        body: "Hey! So jealous you're going. A few must-dos:\n\n— Breakfast tacos at Veracruz (get the migas)\n— Swim at Barton Springs early before it's packed\n— Live music on Rainey St, not 6th\n— Franklin BBQ: get in line by 9:30 or just do the reservation\n\nHave the best time!! xx",
+        updated: now - 1000 * 60 * 60 * 26 },
+    ],
+  };
+}
+
+const str = (v) => (typeof v === 'string' ? v : '');
+function cleanBooking(b) {
+  return { id: str(b.id) || uid(), type: TYPES[b.type] ? b.type : 'other', name: str(b.name), date: str(b.date), time: str(b.time), conf: str(b.conf), address: str(b.address), phone: str(b.phone) };
+}
+function cleanNote(n) {
+  return { id: str(n.id) || uid(), title: str(n.title), body: str(n.body), updated: +n.updated || Date.now() };
+}
+function cleanTrip(t) {
+  return {
+    id: str(t.id) || uid(), name: str(t.name) || 'Trip', created: +t.created || Date.now(),
+    bookings: Array.isArray(t.bookings) ? t.bookings.map(cleanBooking) : [],
+    notes: Array.isArray(t.notes) ? t.notes.map(cleanNote) : [],
+  };
+}
+
+function load() {
+  try {
+    const raw = window.localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data && Array.isArray(data.trips)) {
+        return {
+          trips: data.trips.map(cleanTrip),
+          currentTripId: str(data.currentTripId) || null,
+          sort: ['type', 'date', 'alpha'].includes(data.sort) ? data.sort : 'type',
+        };
+      }
+    }
+  } catch (e) {}
+  const trip = sampleTrip();
+  return { trips: [trip], currentTripId: trip.id, sort: 'type' };
+}
+
+let saveOk = true;
+function persist() {
+  try {
+    window.localStorage.setItem(STORE_KEY, JSON.stringify(db));
+    saveOk = true;
+  } catch (e) {
+    if (saveOk) toast("Couldn't save — this browser is blocking storage.");
+    saveOk = false;
+  }
+}
+
+const firstDate = (t) => t.bookings.map((b) => b.date).filter(Boolean).sort()[0] || '';
+const lastDate = (t) => t.bookings.map((b) => b.date).filter(Boolean).sort().pop() || '';
+const isPast = (t) => { const last = lastDate(t); return !!last && last < todayYMD(); };
+
+function tripRange(t) {
+  const a0 = firstDate(t), b0 = lastDate(t);
+  if (!a0) return '';
+  const a = parseYMD(a0), b = parseYMD(b0);
+  const mon = (d) => d.toLocaleDateString('en-US', { month: 'short' });
+  let s;
+  if (a0 === b0) s = `${mon(a)} ${a.getDate()}`;
+  else if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) s = `${mon(a)} ${a.getDate()}–${b.getDate()}`;
+  else s = `${mon(a)} ${a.getDate()}–${mon(b)} ${b.getDate()}`;
+  if (b.getFullYear() !== new Date().getFullYear()) s += `, ${b.getFullYear()}`;
+  return s;
+}
+function tripMeta(t) {
+  const n = t.bookings.length;
+  const count = n === 0 ? 'No bookings' : `${n} ${n === 1 ? 'booking' : 'bookings'}`;
+  const range = tripRange(t);
+  return range ? `${count} · ${range}` : count;
+}
+
+// The trip shown when nothing else is chosen: the soonest upcoming one, else the most recent.
+function defaultTripId() {
+  const upcoming = db.trips.filter((t) => !isPast(t)).sort((a, b) => (firstDate(a) || '9999').localeCompare(firstDate(b) || '9999'));
+  if (upcoming.length) return upcoming[0].id;
+  const past = db.trips.slice().sort((a, b) => lastDate(b).localeCompare(lastDate(a)));
+  return past.length ? past[0].id : null;
+}
+
+const currentTrip = () => db.trips.find((t) => t.id === db.currentTripId) || null;
+
+function sortedBookings(trip) {
+  const key = (b) => (b.date ? b.date + 'T' + (b.time || '00:00') : '9999');
+  const arr = trip.bookings.slice();
+  if (db.sort === 'date') arr.sort((x, y) => key(x).localeCompare(key(y)));
+  else if (db.sort === 'alpha') arr.sort((x, y) => x.name.localeCompare(y.name));
+  else arr.sort((x, y) => TYPE_ORDER.indexOf(x.type) - TYPE_ORDER.indexOf(y.type) || key(x).localeCompare(key(y)));
+  return arr;
+}
+
+// ---------- main screens ----------
+
+const ui = { tab: 'trip' };
+
+function empty(icon, title, sub, action = '') {
+  return `<div class="empty">${ic(icon)}<div class="empty-title">${title}</div><div class="empty-sub">${sub}</div>${action}</div>`;
+}
+const newTripButton = () => `<button class="big-btn" data-act="new-trip">${ic('add')}NEW TRIP</button>`;
+
+function tripScreen(trip) {
+  if (!trip) {
+    return `<main class="screen"><div class="head"><div class="title">Trips</div><div class="meta">No trips</div></div>
+      ${empty('luggage', 'No trips yet', 'Make a trip, then add bookings or paste in confirmation emails.', newTripButton())}</main>`;
+  }
+  const list = sortedBookings(trip);
+  const sortOpts = [['type', 'BY TYPE'], ['date', 'DATE'], ['alpha', 'A–Z']];
+  return `<main class="screen">
+    <div class="head head-row">
+      <div class="head-text">
+        <button class="trip-switch" data-act="open-trips" aria-label="${esc(trip.name)} — switch trip">
+          <span class="title">${esc(trip.name)}</span>${ic('expand_more')}
+        </button>
+        <div class="meta">${esc(tripMeta(trip))}</div>
+      </div>
+      <button class="round-btn" data-act="add-booking" aria-label="Add booking">${ic('add')}</button>
+    </div>
+    ${list.length ? `
+      <div class="label">Order</div>
+      <div class="seg" role="radiogroup" aria-label="Order">
+        ${sortOpts.map(([k, l]) => `<button class="seg-btn${db.sort === k ? ' on' : ''}" role="radio" aria-checked="${db.sort === k}" data-act="sort" data-sort="${k}">${l}</button>`).join('')}
+      </div>
+      ${list.map(bookingCard).join('')}`
+    : empty('confirmation_number', 'No bookings yet', 'Add one by hand, or paste a confirmation email and it fills itself in.',
+        `<button class="big-btn" data-act="add-booking">${ic('add')}ADD BOOKING</button>`)}
+  </main>`;
+}
+
+function bookingCard(b) {
+  const t = typeOf(b);
+  const when = whenLine(b);
+  const map = b.address ? mapUrl(b.address) : '';
+  const tel = b.phone ? telUrl(b.phone) : '';
+  const conf = b.conf
+    ? `<button class="conf-btn" data-act="enlarge" data-id="${esc(b.id)}" aria-label="Show confirmation ${esc(b.conf)} full screen">
+        <span class="conf-label">Confirmation</span>
+        <span class="conf-num">${esc(b.conf)}</span>
+        <span class="conf-hint">${ic('fullscreen')}tap to enlarge</span>
+      </button>`
+    : `<div class="conf-none">No confirmation number</div>`;
+  const actions = map || tel
+    ? `<div class="perf"><span class="notch l"></span><span class="notch r"></span></div>
+      <div class="actions">
+        <div class="btn-row">
+          ${map ? `<a class="btn btn-nav" href="${esc(map)}" target="_blank" rel="noopener">${ic('navigation')}NAVIGATE</a>` : ''}
+          ${tel ? `<a class="btn btn-call" href="${esc(tel)}">${ic('call')}CALL</a>` : ''}
+        </div>
+        ${map ? `<a class="addr" href="${esc(map)}" target="_blank" rel="noopener">${esc(b.address)}</a>` : ''}
+      </div>`
+    : '';
+  return `<article class="card" style="--accent:${t.accent}">
+    <div class="card-top">
+      <div class="rail">${ic(t.icon)}<span class="rail-label">${t.label}</span></div>
+      <div class="card-body${actions ? '' : ' solo'}">
+        <div class="b-name">${esc(b.name)}</div>
+        ${when ? `<div class="b-when">${esc(when)}</div>` : ''}
+        ${conf}
+        <button class="edit-btn" data-act="edit-booking" data-id="${esc(b.id)}" aria-label="Edit ${esc(b.name)}">${ic('edit')}</button>
+      </div>
+    </div>
+    ${actions}
+  </article>`;
+}
+
+function notesScreen(trip) {
+  if (!trip) {
+    return `<main class="screen"><div class="head"><div class="title">Notes</div><div class="meta">No trips</div></div>
+      ${empty('sticky_note_2', 'Notes live inside a trip', 'Make a trip first, then add notes to it.', newTripButton())}</main>`;
+  }
+  const notes = trip.notes.slice().sort((a, b) => b.updated - a.updated);
+  const n = notes.length;
+  const count = n === 0 ? 'No notes' : `${n} ${n === 1 ? 'note' : 'notes'}`;
+  return `<main class="screen">
+    <div class="head"><div class="title">Notes</div><div class="meta">${esc(trip.name)} · ${count}</div></div>
+    <button class="big-btn" data-act="new-note">${ic('add')}NEW NOTE</button>
+    ${notes.map((note) => `
+      <button class="note-card" data-act="open-note" data-id="${esc(note.id)}">
+        <span class="note-rail">${ic('sticky_note_2')}<span class="rail-label">Note</span></span>
+        <span class="note-main">
+          <span class="note-title">${esc(note.title.trim() || 'Untitled note')}</span>
+          <span class="note-preview">${esc(note.body.replace(/\s+/g, ' ').trim() || 'Empty note')}</span>
+          <span class="note-date">EDITED ${esc(fmtShort(note.updated))}</span>
+        </span>
+      </button>`).join('')}
+    ${n === 0 ? empty('sticky_note_2', 'No notes yet', 'Paste an email, check-out steps, anything.') : ''}
+  </main>`;
+}
+
+function navBar() {
+  const item = (key, label, icon) =>
+    `<button class="nav-btn${ui.tab === key ? ' on' : ''}" data-act="tab" data-tab="${key}"${ui.tab === key ? ' aria-current="page"' : ''}>${ic(icon)}<span>${label}</span></button>`;
+  return `<nav class="nav fixed-col">${item('trip', 'Trip', 'confirmation_number')}${item('notes', 'Notes', 'sticky_note_2')}</nav>`;
+}
+
+function renderMain() {
+  const trip = currentTrip();
+  $('#app').innerHTML = (ui.tab === 'trip' ? tripScreen(trip) : notesScreen(trip)) + navBar();
+}
+
+// ---------- sheets (full-screen layers) ----------
+
+const stack = [];
+
+function openSheet(kind, html, { accent, onDismiss } = {}) {
+  const el = document.createElement('div');
+  el.className = 'sheet fixed-col';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.style.zIndex = String(60 + stack.length * 10);
+  if (accent) el.style.setProperty('--accent', accent);
+  el.innerHTML = html;
+  $('#layer').appendChild(el);
+  stack.push({ kind, el, onDismiss });
+  document.documentElement.classList.add('locked');
+  return el;
+}
+
+// Closes the named sheet and anything stacked above it.
+function closeSheet(kind) {
+  const i = stack.findIndex((s) => s.kind === kind);
+  if (i < 0) return;
+  for (const s of stack.splice(i)) s.el.remove();
+  if (!stack.length) document.documentElement.classList.remove('locked');
+}
+
+function dismissTop() {
+  const top = stack[stack.length - 1];
+  if (!top) return;
+  if (top.onDismiss) top.onDismiss();
+  else closeSheet(top.kind);
+}
+
+// --- confirmation number, full screen ---
+
+function findBooking(id) {
+  const trip = currentTrip();
+  return trip ? trip.bookings.find((b) => b.id === id) : null;
+}
+
+function openConf(id) {
+  const b = findBooking(id);
+  if (!b || !b.conf) return;
+  const t = typeOf(b);
+  const len = b.conf.length;
+  // Short codes get as big as fits on one line (Plex Mono is 0.6em wide + 5px tracking); long ones wrap.
+  const avail = $('#app').clientWidth - 40;
+  const size = len <= 8
+    ? Math.max(44, Math.min(len <= 6 ? 84 : 66, Math.floor((avail / len - 5) / 0.6)))
+    : 50;
+  openSheet('conf', `
+    <div class="bar"></div>
+    <div class="ov-head">
+      <div class="ov-titles"><div class="ov-name">${esc(b.name)}</div><div class="ov-type">${esc(t.label)} · Confirmation</div></div>
+      <button class="round-btn" data-act="close" data-sheet="conf" aria-label="Close">${ic('close')}</button>
+    </div>
+    <button class="ov-num-wrap" data-act="close" data-sheet="conf" aria-label="Dismiss"><span class="ov-num" style="font-size:${size}px">${esc(b.conf)}</span></button>
+    <div class="ov-foot">
+      <button class="copy-btn" data-act="copy" data-id="${esc(b.id)}">${ic('content_copy')}<span class="copy-label">Copy number</span></button>
+      <div class="ov-cap">Tap the number to dismiss</div>
+    </div>`, { accent: t.accent });
+}
+
+let copyTimer;
+async function copyConf(id, btn) {
+  const b = findBooking(id);
+  if (!b) return;
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(b.conf);
+    ok = true;
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = b.conf;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { ok = document.execCommand('copy'); } catch (e2) {}
+    ta.remove();
+  }
+  const label = btn.querySelector('.copy-label');
+  label.textContent = ok ? 'Copied!' : "Couldn't copy";
+  clearTimeout(copyTimer);
+  copyTimer = setTimeout(() => { label.textContent = 'Copy number'; }, 1400);
+}
+
+// --- add / edit booking ---
+
+const FIELD_NAMES = { name: 'name', date: 'date', time: 'time', conf: 'confirmation number', address: 'address', phone: 'phone' };
+const listWords = (w) => (w.length > 1 ? w.slice(0, -1).join(', ') + ' and ' + w[w.length - 1] : w[0]);
+
+function openBookingForm(id) {
+  const trip = currentTrip();
+  if (!trip) return;
+  const existing = id ? trip.bookings.find((b) => b.id === id) : null;
+  if (id && !existing) return;
+  const draft = existing ? { ...existing } : { type: 'other', name: '', date: '', time: '', conf: '', address: '', phone: '' };
+  const startState = JSON.stringify(draft);
+
+  const el = openSheet('booking', `
+    <div class="bar"></div>
+    <div class="topbar">
+      <button class="link-btn" data-f="cancel">Cancel</button>
+      <div class="topbar-title">${existing ? 'Edit booking' : 'New booking'}</div>
+      <button class="save-btn" data-f="save">SAVE</button>
+    </div>
+    <div class="sheet-body">
+      ${existing ? '' : `
+      <section class="paste">
+        <div class="paste-head">${ic('content_paste')}Fill in from an email</div>
+        <p class="paste-sub">Paste a confirmation email and the details below fill themselves in. It's read on this device and never sent anywhere.</p>
+        <textarea class="input paste-text" data-f="paste" rows="4" placeholder="Paste the email here…" aria-label="Confirmation email text"></textarea>
+        <button class="small-btn" data-f="fill">FILL IN BOOKING</button>
+        <div class="paste-result" data-f="result" role="status" aria-live="polite"></div>
+      </section>`}
+      <div class="field">
+        <span class="label">Type</span>
+        <div class="types">
+          ${TYPE_ORDER.map((k) => `<button type="button" class="type-chip" data-f="type" data-type="${k}" style="--chip:${TYPES[k].accent}" aria-pressed="false">${ic(TYPES[k].icon)}${TYPES[k].chip}</button>`).join('')}
+        </div>
+      </div>
+      <label class="field"><span class="label">Name</span>
+        <input class="input" data-k="name" autocomplete="off" value="${esc(draft.name)}"></label>
+      <div class="row2">
+        <label class="field"><span class="label">Date</span>
+          <input class="input" type="date" data-k="date" value="${esc(draft.date)}"></label>
+        <label class="field"><span class="label" data-f="time-label">Time</span>
+          <input class="input" type="time" data-k="time" value="${esc(draft.time)}"></label>
+      </div>
+      <label class="field"><span class="label">Confirmation number</span>
+        <input class="input conf" data-k="conf" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" value="${esc(draft.conf)}"></label>
+      <label class="field"><span class="label">Address</span>
+        <textarea class="input mono" data-k="address" rows="2" placeholder="Used for Navigate">${esc(draft.address)}</textarea></label>
+      <label class="field"><span class="label">Phone</span>
+        <input class="input mono" type="tel" data-k="phone" autocomplete="off" placeholder="Used for Call" value="${esc(draft.phone)}"></label>
+      ${existing ? `<button class="danger-btn" data-f="delete">${ic('delete')}DELETE BOOKING</button>` : ''}
+    </div>`, { onDismiss: cancel });
+
+  const saveBtn = $('[data-f="save"]', el);
+  const pasteBox = $('[data-f="paste"]', el);
+
+  function setType(type) {
+    draft.type = type;
+    const t = TYPES[type];
+    el.style.setProperty('--accent', t.accent);
+    el.querySelectorAll('[data-f="type"]').forEach((chip) => {
+      const on = chip.dataset.type === type;
+      chip.classList.toggle('on', on);
+      chip.setAttribute('aria-pressed', String(on));
+    });
+    $('[data-f="time-label"]', el).textContent = t.timeLabel;
+    $('[data-k="name"]', el).placeholder = 'e.g. ' + t.example;
+  }
+  const refresh = () => { saveBtn.disabled = !draft.name.trim(); };
+
+  function fill() {
+    const result = $('[data-f="result"]', el);
+    if (!pasteBox.value.trim()) {
+      result.className = 'paste-result';
+      result.textContent = 'Paste an email in the box first.';
+      return;
+    }
+    const r = window.parseBookingEmail(pasteBox.value);
+    if (r.type !== 'other') setType(r.type);
+    for (const k of r.found) {
+      const input = $(`[data-k="${k}"]`, el);
+      input.value = r[k];
+      draft[k] = r[k];
+      input.classList.add('filled');
+    }
+    refresh();
+    if (!r.found.length) {
+      result.className = 'paste-result warn';
+      result.textContent = "Couldn't find booking details in that text. Fill them in below.";
+      return;
+    }
+    let msg = `Filled in the ${listWords(r.found.map((k) => FIELD_NAMES[k]))}. Check them before saving.`;
+    if (!r.name) msg += ' Add a name to save.';
+    result.className = 'paste-result ok';
+    result.innerHTML = ic('check') + esc(msg);
+  }
+
+  function save() {
+    if (!draft.name.trim()) return;
+    const clean = {
+      id: existing ? existing.id : uid(),
+      type: draft.type,
+      name: draft.name.trim(),
+      date: draft.date,
+      time: draft.time,
+      conf: draft.conf.trim(),
+      address: draft.address.trim().replace(/\s*\n\s*/g, ', '),
+      phone: draft.phone.trim(),
+    };
+    if (existing) trip.bookings = trip.bookings.map((b) => (b.id === existing.id ? clean : b));
+    else trip.bookings.push(clean);
+    persist();
+    closeSheet('booking');
+    renderMain();
+  }
+
+  function cancel() {
+    if (JSON.stringify(draft) !== startState && !confirm(existing ? 'Discard your changes?' : 'Discard this booking?')) return;
+    closeSheet('booking');
+  }
+
+  el.addEventListener('input', (e) => {
+    const k = e.target.dataset.k;
+    if (!k) return;
+    draft[k] = e.target.value;
+    e.target.classList.remove('filled');
+    refresh();
+  });
+  if (pasteBox) pasteBox.addEventListener('paste', () => setTimeout(fill, 0));
+  el.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-f]');
+    if (!f) return;
+    switch (f.dataset.f) {
+      case 'type': setType(f.dataset.type); break;
+      case 'fill': fill(); break;
+      case 'save': save(); break;
+      case 'cancel': cancel(); break;
+      case 'delete':
+        if (!confirm(`Delete “${existing.name}”? This can't be undone.`)) return;
+        trip.bookings = trip.bookings.filter((b) => b.id !== existing.id);
+        persist();
+        closeSheet('booking');
+        renderMain();
+        break;
+    }
+  });
+
+  setType(draft.type);
+  refresh();
+}
+
+// --- notes ---
+
+function newNote() {
+  const trip = currentTrip();
+  if (!trip) return;
+  const note = { id: uid(), title: '', body: '', updated: Date.now() };
+  trip.notes.unshift(note);
+  persist();
+  openNote(note.id, true);
+}
+
+function openNote(id, isNew) {
+  const trip = currentTrip();
+  const note = trip && trip.notes.find((n) => n.id === id);
+  if (!note) return;
+  const el = openSheet('note', `
+    <div class="bar"></div>
+    <div class="topbar">
+      <button class="link-btn" data-f="back">${ic('chevron_left')}Notes</button>
+      <div class="saved" data-f="saved">${ic('cloud_done')}SAVED</div>
+      <button class="icon-btn danger" data-f="delete" aria-label="Delete note">${ic('delete')}</button>
+    </div>
+    <input class="note-title-input" data-note="title" placeholder="Note title" aria-label="Note title" value="${esc(note.title)}">
+    <textarea class="note-body-input" data-note="body" aria-label="Note" placeholder="Write or paste anything — an email, check-out instructions, a list…">${esc(note.body)}</textarea>`,
+    { accent: MANILA, onDismiss: close });
+
+  const savedEl = $('[data-f="saved"]', el);
+
+  // Notes left completely empty are discarded on the way out.
+  function close() {
+    if (!note.title.trim() && !note.body.trim()) {
+      trip.notes = trip.notes.filter((n) => n.id !== note.id);
+      persist();
+    }
+    closeSheet('note');
+    renderMain();
+  }
+
+  el.addEventListener('input', (e) => {
+    const k = e.target.dataset.note;
+    if (!k) return;
+    note[k] = e.target.value;
+    note.updated = Date.now();
+    persist();
+    savedEl.classList.toggle('bad', !saveOk);
+    savedEl.innerHTML = saveOk ? ic('cloud_done') + 'SAVED' : ic('cloud_off') + 'NOT SAVED';
+  });
+  el.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-f]');
+    if (!f) return;
+    if (f.dataset.f === 'back') close();
+    if (f.dataset.f === 'delete') {
+      if ((note.title.trim() || note.body.trim()) && !confirm("Delete this note? This can't be undone.")) return;
+      trip.notes = trip.notes.filter((n) => n.id !== note.id);
+      persist();
+      closeSheet('note');
+      renderMain();
+    }
+  });
+  if (isNew) $('.note-title-input', el).focus();
+}
+
+// --- trips ---
+
+function tripRow(t) {
+  const cur = t.id === db.currentTripId;
+  return `<div class="trip-row${cur ? ' current' : ''}">
+    <button class="trip-main" data-act="switch-trip" data-id="${esc(t.id)}"${cur ? ' aria-current="true"' : ''}>
+      <span class="trip-name"><span class="txt">${esc(t.name)}</span>${cur ? ic('check') : ''}</span>
+      <span class="trip-meta">${esc(tripMeta(t))}</span>
+    </button>
+    <button class="icon-btn" data-act="edit-trip" data-id="${esc(t.id)}" aria-label="Rename or delete ${esc(t.name)}">${ic('edit')}</button>
+  </div>`;
+}
+
+function openTrips() {
+  openSheet('trips', '', { accent: INK });
+  renderTrips();
+}
+
+function renderTrips() {
+  const sheet = stack.find((s) => s.kind === 'trips');
+  if (!sheet) return;
+  const upcoming = db.trips.filter((t) => !isPast(t))
+    .sort((a, b) => (firstDate(a) || '9999').localeCompare(firstDate(b) || '9999') || b.created - a.created);
+  const past = db.trips.filter(isPast).sort((a, b) => lastDate(b).localeCompare(lastDate(a)));
+  sheet.el.innerHTML = `
+    <div class="bar"></div>
+    <div class="sheet-head">
+      <div class="title">Trips</div>
+      <button class="round-btn" data-act="close" data-sheet="trips" aria-label="Close">${ic('close')}</button>
+    </div>
+    <div class="sheet-body">
+      ${newTripButton()}
+      ${upcoming.length ? `<div class="label">Upcoming</div>${upcoming.map(tripRow).join('')}` : ''}
+      ${past.length ? `<div class="label${upcoming.length ? ' label-gap' : ''}">Past</div>${past.map(tripRow).join('')}` : ''}
+      ${isStandalone() ? '' : `<div class="hint">${ic('ios_share')}<div><b>Put it on your home screen.</b> In Safari, tap Share, then “Add to Home Screen.” It opens without signal, and your trips stay saved on this phone.</div></div>`}
+    </div>`;
+}
+
+function switchTrip(id) {
+  db.currentTripId = id;
+  persist();
+  closeSheet('trips');
+  renderMain();
+  window.scrollTo(0, 0);
+}
+
+function openTripEditor(id) {
+  const trip = id ? db.trips.find((t) => t.id === id) : null;
+  if (id && !trip) return;
+  const nb = trip ? trip.bookings.length : 0, nn = trip ? trip.notes.length : 0;
+  const contents = [nb && `${nb} ${nb === 1 ? 'booking' : 'bookings'}`, nn && `${nn} ${nn === 1 ? 'note' : 'notes'}`].filter(Boolean);
+  const el = openSheet('trip-edit', `
+    <div class="bar"></div>
+    <div class="topbar">
+      <button class="link-btn" data-f="cancel">Cancel</button>
+      <div class="topbar-title">${trip ? 'Edit trip' : 'New trip'}</div>
+      <button class="save-btn" data-f="save">${trip ? 'SAVE' : 'CREATE'}</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field"><span class="label">Trip name</span>
+        <input class="input big" data-f="name" placeholder="e.g. Lisbon" autocomplete="off" enterkeyhint="done" value="${esc(trip ? trip.name : '')}"></label>
+      ${trip ? `<button class="danger-btn" data-f="delete">${ic('delete')}DELETE TRIP</button>
+        <p class="danger-cap">${contents.length ? `Also deletes its ${listWords(contents)}. ` : ''}This can't be undone.</p>` : ''}
+    </div>`, { accent: INK });
+
+  const input = $('[data-f="name"]', el);
+  const saveBtn = $('[data-f="save"]', el);
+  const refresh = () => { saveBtn.disabled = !input.value.trim(); };
+
+  function save() {
+    const name = input.value.trim();
+    if (!name) return;
+    if (trip) {
+      trip.name = name;
+      persist();
+      closeSheet('trip-edit');
+      renderTrips();
+    } else {
+      const t = { id: uid(), name, created: Date.now(), bookings: [], notes: [] };
+      db.trips.push(t);
+      db.currentTripId = t.id;
+      ui.tab = 'trip';
+      persist();
+      closeSheet(stack.some((s) => s.kind === 'trips') ? 'trips' : 'trip-edit');
+      window.scrollTo(0, 0);
+    }
+    renderMain();
+  }
+
+  input.addEventListener('input', refresh);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+  el.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-f]');
+    if (!f) return;
+    if (f.dataset.f === 'save') save();
+    if (f.dataset.f === 'cancel') closeSheet('trip-edit');
+    if (f.dataset.f === 'delete') {
+      if (!confirm(`Delete the “${trip.name}” trip?${contents.length ? ` Its ${listWords(contents)} will be deleted too.` : ''}`)) return;
+      db.trips = db.trips.filter((t) => t.id !== trip.id);
+      if (db.currentTripId === trip.id) db.currentTripId = defaultTripId();
+      persist();
+      closeSheet('trip-edit');
+      renderTrips();
+      renderMain();
+    }
+  });
+  refresh();
+  input.focus();
+}
+
+// ---------- events ----------
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const id = el.dataset.id;
+  switch (el.dataset.act) {
+    case 'tab': ui.tab = el.dataset.tab; renderMain(); window.scrollTo(0, 0); break;
+    case 'sort': db.sort = el.dataset.sort; persist(); renderMain(); break;
+    case 'enlarge': openConf(id); break;
+    case 'copy': copyConf(id, el); break;
+    case 'close': closeSheet(el.dataset.sheet); break;
+    case 'add-booking': openBookingForm(null); break;
+    case 'edit-booking': openBookingForm(id); break;
+    case 'open-trips': openTrips(); break;
+    case 'switch-trip': switchTrip(id); break;
+    case 'new-trip': openTripEditor(null); break;
+    case 'edit-trip': openTripEditor(id); break;
+    case 'new-note': newNote(); break;
+    case 'open-note': openNote(id); break;
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && stack.length) dismissTop();
+});
+
+// ---------- start ----------
+
+const db = load();
+if (!currentTrip()) db.currentTripId = defaultTripId();
+persist();
+renderMain();
+
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>
