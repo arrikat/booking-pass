@@ -153,19 +153,38 @@
   }
 
   function pickTime(t, times, date) {
-    if (!times.length) return '';
+    if (!times.length) return null;
     if (date) {
       const after = times.find((x) => x.idx >= date.end && x.idx - date.end <= 120);
-      if (after) return after.time;
+      if (after) return after;
       const before = times.filter((x) => x.idx < date.idx && date.idx - x.idx <= 60).pop();
-      if (before) return before.time;
+      if (before) return before;
     }
     let best = null;
     for (const x of times) {
       const score = contextWeight(t, x.idx, TIME_RULES, 40);
       if (!best || score > best.score) best = { ...x, score };
     }
-    return best.time;
+    return best;
+  }
+
+  // ---------- flight arrival & seat ----------
+
+  const ARRIVE_RULES = [
+    [/arriv(?:al|e|es|ing)|\blands?\b|landing/g, 3],
+    [/depart(?:s|ure|ing)?|board(?:s|ing)?/g, -3],
+  ];
+  const RE_SEAT = /\bseats?\b(?:\s*(?:number|no\.?|#|assignment))?\s*[:\-]?\s*(\d{1,2}[A-K])\b/i;
+
+  // The arrival is a time labeled "Arrive…", or else the next time on the departure's line
+  // ("9:05 AM – 2:41 PM"). A date between the two means it lands on a different day.
+  function findArrival(t, times, dates, dep) {
+    if (!dep) return null;
+    let arr = times.find((x) => x.idx !== dep.idx && contextWeight(t, x.idx, ARRIVE_RULES, 40) > 0);
+    if (!arr) arr = times.find((x) => x.idx > dep.idx && x.idx - dep.idx <= 60 && !t.slice(dep.idx, x.idx).includes('\n'));
+    if (!arr) return null;
+    const between = dates.filter((d) => d.idx > dep.idx && d.idx < arr.idx);
+    return { time: arr.time, date: between.length ? between[between.length - 1].date : '' };
   }
 
   // ---------- confirmation number ----------
@@ -429,7 +448,7 @@
   function parseBookingEmail(text, now) {
     now = now || new Date();
     const t = dropEmailHeaders(normalize(text));
-    const out = { type: 'other', name: '', date: '', time: '', conf: '', address: '', phone: '', found: [] };
+    const out = { type: 'other', name: '', date: '', time: '', arriveDate: '', arriveTime: '', conf: '', seat: '', address: '', phone: '', found: [] };
     if (!t) return out;
 
     const flight = findFlight(t);
@@ -438,9 +457,12 @@
     const carBrand = carMatch ? carMatch[1] : '';
     out.type = detectType(t, flight, route, carBrand);
 
-    const date = pickDate(t, findDates(t, now));
+    const dates = findDates(t, now);
+    const times = findTimes(t);
+    const date = pickDate(t, dates);
+    const dep = pickTime(t, times, date);
     out.date = date ? date.date : '';
-    out.time = pickTime(t, findTimes(t), date);
+    out.time = dep ? dep.time : '';
     out.conf = findConf(t);
     out.phone = findPhone(t);
     const addr = findAddress(t);
@@ -452,6 +474,13 @@
       if (route) name = name ? `${name} · ${route.from}→${route.to}` : `${route.from}→${route.to}`;
       out.name = name;
       if (!out.address && route) out.address = `${route.from} Airport`;
+      const arrival = findArrival(t, times, dates, dep);
+      if (arrival) {
+        out.arriveTime = arrival.time;
+        if (arrival.date && arrival.date !== out.date) out.arriveDate = arrival.date;
+      }
+      const seat = RE_SEAT.exec(t);
+      if (seat) out.seat = seat[1].toUpperCase();
     } else if (out.type === 'car') {
       const brand = carBrand ? carBrand.replace(/^SIXT$/, 'Sixt') : '';
       out.name = brand ? (addr.city ? `${brand} — ${addr.city}` : brand) : nameAfterTriggers(t);
@@ -459,7 +488,7 @@
       out.name = nameAfterTriggers(t) || (out.type === 'hotel' ? hotelName(t) : '');
     }
 
-    out.found = ['name', 'date', 'time', 'conf', 'address', 'phone'].filter((k) => out[k]);
+    out.found = ['name', 'date', 'time', 'arriveDate', 'arriveTime', 'conf', 'seat', 'address', 'phone'].filter((k) => out[k]);
     return out;
   }
 

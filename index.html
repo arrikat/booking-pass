@@ -50,6 +50,7 @@
   html, body { margin: 0; background: var(--backdrop); }
   body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; }
   html.locked, html.locked body { overflow: hidden; }
+  [hidden] { display: none !important; }
   ::-webkit-scrollbar { width: 0; height: 0; }
   button, input, textarea { font: inherit; color: inherit; }
   button { appearance: none; -webkit-appearance: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -100,6 +101,9 @@
   .card-body.solo { padding-bottom: 10px; }
   .b-name { font: 700 18px/1.2 var(--sans); letter-spacing: -0.2px; color: var(--ink); padding-right: 30px; overflow-wrap: anywhere; }
   .b-when { font: 500 12px/1.3 var(--mono); color: var(--muted); margin-top: 6px; }
+  .b-when + .b-when { margin-top: 3px; }
+  .b-when b { font-weight: 700; color: var(--ink); }
+  .b-details { margin: 8px 0 6px; padding: 9px 11px; border-radius: 8px; background: var(--screen); font: 400 13px/1.45 var(--sans); color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
   .edit-btn { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0; background: transparent; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--faint-2); }
   .edit-btn .ic { font-size: 19px; }
   .conf-btn { border: 0; background: transparent; padding: 0; margin: 14px 0 6px; display: block; width: 100%; text-align: left; }
@@ -198,6 +202,7 @@
   input.input::-webkit-date-and-time-value { text-align: left; }
   .row2 { display: flex; gap: 10px; }
   .row2 > * { flex: 1; min-width: 0; }
+  .row2 > .wide { flex: 2; }
   .types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .type-chip { height: 46px; border: 1.5px solid var(--outline); background: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; font: 700 12px/1 var(--sans); color: var(--muted); white-space: nowrap; }
   .type-chip .ic { font-size: 18px; color: var(--chip); }
@@ -253,12 +258,18 @@ const MANILA = 'oklch(0.46 0.035 70)';
 
 // Booking types, in "BY TYPE" order.
 const TYPES = {
-  flight: { label: 'Flight', chip: 'Flight', icon: 'flight', accent: 'oklch(0.52 0.16 28)', timeWord: 'departs', timeLabel: 'Departs', example: 'Delta DL 1492 · SFO→AUS' },
-  car: { label: 'Rental Car', chip: 'Rental car', icon: 'directions_car', accent: 'oklch(0.52 0.13 155)', timeWord: 'pickup', timeLabel: 'Pick-up', example: 'Hertz — Austin' },
-  hotel: { label: 'Hotel', chip: 'Hotel', icon: 'hotel', accent: 'oklch(0.52 0.13 255)', timeWord: 'check-in', timeLabel: 'Check-in', example: 'Hotel Saint Cecilia' },
-  dinner: { label: 'Dinner', chip: 'Dinner', icon: 'restaurant', accent: 'oklch(0.54 0.12 70)', timeWord: '', timeLabel: 'Time', example: 'Franklin Barbecue' },
-  tour: { label: 'Tour', chip: 'Tour', icon: 'kayaking', accent: 'oklch(0.52 0.15 300)', timeWord: '', timeLabel: 'Time', example: 'Lady Bird Lake Kayak Tour' },
-  other: { label: 'Other', chip: 'Other', icon: 'local_activity', accent: 'oklch(0.47 0.03 250)', timeWord: '', timeLabel: 'Time', example: 'Amtrak to Portland' },
+  flight: { label: 'Flight', chip: 'Flight', icon: 'flight', accent: 'oklch(0.52 0.16 28)', timeWord: 'departs', timeLabel: 'Departs', example: 'Delta DL 1492 · SFO→AUS',
+    detailsHint: 'e.g. Bag checked through. Lounge is past security in Terminal 2.' },
+  car: { label: 'Rental Car', chip: 'Rental car', icon: 'directions_car', accent: 'oklch(0.52 0.13 155)', timeWord: 'pickup', timeLabel: 'Pick-up', example: 'Hertz — Austin',
+    detailsHint: 'e.g. Electric — return it at 80% charge. Toll pass included.' },
+  hotel: { label: 'Hotel', chip: 'Hotel', icon: 'hotel', accent: 'oklch(0.52 0.13 255)', timeWord: 'check-in', timeLabel: 'Check-in', example: 'Hotel Saint Cecilia',
+    detailsHint: 'e.g. Door code 4821. Park in spot 12. Trash goes out Tuesday.' },
+  dinner: { label: 'Dinner', chip: 'Dinner', icon: 'restaurant', accent: 'oklch(0.54 0.12 70)', timeWord: '', timeLabel: 'Time', example: 'Franklin Barbecue',
+    detailsHint: 'e.g. Patio table. Ask about the off-menu brisket.' },
+  tour: { label: 'Tour', chip: 'Tour', icon: 'kayaking', accent: 'oklch(0.52 0.15 300)', timeWord: '', timeLabel: 'Time', example: 'Lady Bird Lake Kayak Tour',
+    detailsHint: 'e.g. Bring water shoes. Meet at the blue tent by the boathouse.' },
+  other: { label: 'Other', chip: 'Other', icon: 'local_activity', accent: 'oklch(0.47 0.03 250)', timeWord: '', timeLabel: 'Time', example: 'Amtrak to Portland',
+    detailsHint: 'e.g. Coach 4, seat 12B. Platform is posted 15 minutes before.' },
 };
 const TYPE_ORDER = Object.keys(TYPES);
 
@@ -289,13 +300,24 @@ function fmtShort(ts) {
   try { return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
   catch (e) { return ''; }
 }
+const fmtDay = (ymd) => parseYMD(ymd).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
 function whenLine(b) {
   const parts = [];
-  if (b.date) parts.push(parseYMD(b.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', ''));
+  if (b.date) parts.push(fmtDay(b.date));
   if (b.time) {
     const word = typeOf(b).timeWord;
     parts.push((word ? word + ' ' : '') + fmtTime(b.time));
   }
+  return parts.join(' · ');
+}
+// Flights get a second line: "arrives 2:41 PM · seat 22A". The arrival day only shows when it differs.
+function flightLineHtml(b) {
+  if (b.type !== 'flight') return '';
+  const parts = [];
+  const day = b.arriveDate && b.arriveDate !== b.date ? fmtDay(b.arriveDate) : '';
+  const arrive = [day, b.arriveTime ? fmtTime(b.arriveTime) : ''].filter(Boolean).join(' ');
+  if (arrive) parts.push('arrives ' + esc(arrive));
+  if (b.seat) parts.push(`seat <b>${esc(b.seat)}</b>`);
   return parts.join(' · ');
 }
 const mapUrl = (address) => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(address);
@@ -321,9 +343,11 @@ function sampleTrip() {
   return {
     id: uid(), name: 'Austin', created: now,
     bookings: [
-      { id: uid(), type: 'flight', name: 'Delta DL 1492 · SFO→AUS', date: '2026-06-18', time: '09:05', conf: 'GKZ4QP', address: '1 John Glenn Ave, San Francisco, CA 94128', phone: '+1 800-555-0199' },
-      { id: uid(), type: 'car', name: 'Hertz — Austin AUS', date: '2026-06-18', time: '14:30', conf: 'H7X92K4', address: '3600 Presidential Blvd, Austin, TX 78719', phone: '+1 512-555-0142' },
-      { id: uid(), type: 'hotel', name: 'Hotel Saint Cecilia', date: '2026-06-18', time: '15:00', conf: 'SC-48820', address: '112 Academy Dr, Austin, TX 78704', phone: '+1 512-555-0188' },
+      { id: uid(), type: 'flight', name: 'Delta DL 1492 · SFO→AUS', date: '2026-06-18', time: '09:05', arriveTime: '14:41', seat: '22A', conf: 'GKZ4QP', address: '1 John Glenn Ave, San Francisco, CA 94128', phone: '+1 800-555-0199' },
+      { id: uid(), type: 'car', name: 'Hertz — Austin AUS', date: '2026-06-18', time: '14:30', conf: 'H7X92K4', address: '3600 Presidential Blvd, Austin, TX 78719', phone: '+1 512-555-0142',
+        details: 'Electric (Polestar 2). Return at 80% charge — the cable is in the trunk.' },
+      { id: uid(), type: 'hotel', name: 'Hotel Saint Cecilia', date: '2026-06-18', time: '15:00', conf: 'SC-48820', address: '112 Academy Dr, Austin, TX 78704', phone: '+1 512-555-0188',
+        details: 'Poolside bungalow. Parking is validated at the front desk.' },
       { id: uid(), type: 'dinner', name: 'Franklin Barbecue', date: '2026-06-20', time: '19:30', conf: 'RZ-7741', address: '900 E 11th St, Austin, TX 78702', phone: '+1 512-555-0153' },
       { id: uid(), type: 'tour', name: 'Lady Bird Lake Kayak Tour', date: '2026-06-19', time: '10:00', conf: 'LBK-3098', address: '2418 Stratford Dr, Austin, TX 78746', phone: '+1 512-555-0176' },
     ],
@@ -340,7 +364,11 @@ function sampleTrip() {
 
 const str = (v) => (typeof v === 'string' ? v : '');
 function cleanBooking(b) {
-  return { id: str(b.id) || uid(), type: TYPES[b.type] ? b.type : 'other', name: str(b.name), date: str(b.date), time: str(b.time), conf: str(b.conf), address: str(b.address), phone: str(b.phone) };
+  return {
+    id: str(b.id) || uid(), type: TYPES[b.type] ? b.type : 'other', name: str(b.name), date: str(b.date), time: str(b.time),
+    arriveDate: str(b.arriveDate), arriveTime: str(b.arriveTime), conf: str(b.conf), seat: str(b.seat),
+    address: str(b.address), phone: str(b.phone), details: str(b.details),
+  };
 }
 function cleanNote(n) {
   return { id: str(n.id) || uid(), title: str(n.title), body: str(n.body), updated: +n.updated || Date.now() };
@@ -367,7 +395,7 @@ function load() {
       }
     }
   } catch (e) {}
-  const trip = sampleTrip();
+  const trip = cleanTrip(sampleTrip());
   return { trips: [trip], currentTripId: trip.id, sort: 'type' };
 }
 
@@ -464,6 +492,7 @@ function tripScreen(trip) {
 function bookingCard(b) {
   const t = typeOf(b);
   const when = whenLine(b);
+  const flightLine = flightLineHtml(b);
   const map = b.address ? mapUrl(b.address) : '';
   const tel = b.phone ? telUrl(b.phone) : '';
   const conf = b.conf
@@ -489,7 +518,9 @@ function bookingCard(b) {
       <div class="card-body${actions ? '' : ' solo'}">
         <div class="b-name">${esc(b.name)}</div>
         ${when ? `<div class="b-when">${esc(when)}</div>` : ''}
+        ${flightLine ? `<div class="b-when">${flightLine}</div>` : ''}
         ${conf}
+        ${b.details ? `<div class="b-details">${esc(b.details)}</div>` : ''}
         <button class="edit-btn" data-act="edit-booking" data-id="${esc(b.id)}" aria-label="Edit ${esc(b.name)}">${ic('edit')}</button>
       </div>
     </div>
@@ -621,7 +652,7 @@ async function copyConf(id, btn) {
 
 // --- add / edit booking ---
 
-const FIELD_NAMES = { name: 'name', date: 'date', time: 'time', conf: 'confirmation number', address: 'address', phone: 'phone' };
+const FIELD_NAMES = { name: 'name', date: 'date', time: 'time', arriveDate: 'arrival date', arriveTime: 'arrival time', conf: 'confirmation number', seat: 'seat', address: 'address', phone: 'phone' };
 const listWords = (w) => (w.length > 1 ? w.slice(0, -1).join(', ') + ' and ' + w[w.length - 1] : w[0]);
 
 function openBookingForm(id) {
@@ -629,7 +660,7 @@ function openBookingForm(id) {
   if (!trip) return;
   const existing = id ? trip.bookings.find((b) => b.id === id) : null;
   if (id && !existing) return;
-  const draft = existing ? { ...existing } : { type: 'other', name: '', date: '', time: '', conf: '', address: '', phone: '' };
+  const draft = existing ? { ...existing } : { type: 'other', name: '', date: '', time: '', arriveDate: '', arriveTime: '', conf: '', seat: '', address: '', phone: '', details: '' };
   const startState = JSON.stringify(draft);
 
   const el = openSheet('booking', `
@@ -662,12 +693,24 @@ function openBookingForm(id) {
         <label class="field"><span class="label" data-f="time-label">Time</span>
           <input class="input" type="time" data-k="time" value="${esc(draft.time)}"></label>
       </div>
-      <label class="field"><span class="label">Confirmation number</span>
-        <input class="input conf" data-k="conf" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" value="${esc(draft.conf)}"></label>
+      <div class="row2" data-flight-only>
+        <label class="field"><span class="label">Arrival date</span>
+          <input class="input" type="date" data-k="arriveDate" value="${esc(draft.arriveDate)}"></label>
+        <label class="field"><span class="label">Arrives</span>
+          <input class="input" type="time" data-k="arriveTime" value="${esc(draft.arriveTime)}"></label>
+      </div>
+      <div class="row2">
+        <label class="field wide"><span class="label">Confirmation number</span>
+          <input class="input conf" data-k="conf" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" value="${esc(draft.conf)}"></label>
+        <label class="field" data-flight-only><span class="label">Seat</span>
+          <input class="input conf" data-k="seat" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="22A" value="${esc(draft.seat)}"></label>
+      </div>
       <label class="field"><span class="label">Address</span>
         <textarea class="input mono" data-k="address" rows="2" placeholder="Used for Navigate">${esc(draft.address)}</textarea></label>
       <label class="field"><span class="label">Phone</span>
         <input class="input mono" type="tel" data-k="phone" autocomplete="off" placeholder="Used for Call" value="${esc(draft.phone)}"></label>
+      <label class="field"><span class="label">Notes</span>
+        <textarea class="input" data-k="details" rows="3">${esc(draft.details)}</textarea></label>
       ${existing ? `<button class="danger-btn" data-f="delete">${ic('delete')}DELETE BOOKING</button>` : ''}
     </div>`, { onDismiss: cancel });
 
@@ -685,6 +728,8 @@ function openBookingForm(id) {
     });
     $('[data-f="time-label"]', el).textContent = t.timeLabel;
     $('[data-k="name"]', el).placeholder = 'e.g. ' + t.example;
+    $('[data-k="details"]', el).placeholder = t.detailsHint;
+    el.querySelectorAll('[data-flight-only]').forEach((field) => { field.hidden = type !== 'flight'; });
   }
   const refresh = () => { saveBtn.disabled = !draft.name.trim(); };
 
@@ -717,15 +762,20 @@ function openBookingForm(id) {
 
   function save() {
     if (!draft.name.trim()) return;
+    const flight = draft.type === 'flight'; // arrival and seat only apply to flights
     const clean = {
       id: existing ? existing.id : uid(),
       type: draft.type,
       name: draft.name.trim(),
       date: draft.date,
       time: draft.time,
+      arriveDate: flight ? draft.arriveDate : '',
+      arriveTime: flight ? draft.arriveTime : '',
       conf: draft.conf.trim(),
+      seat: flight ? draft.seat.trim() : '',
       address: draft.address.trim().replace(/\s*\n\s*/g, ', '),
       phone: draft.phone.trim(),
+      details: draft.details.trim(),
     };
     if (existing) trip.bookings = trip.bookings.map((b) => (b.id === existing.id ? clean : b));
     else trip.bookings.push(clean);

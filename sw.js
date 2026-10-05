@@ -1,7 +1,7 @@
 /* Booking Pass service worker — lets the app open with no signal.
    App files load instantly from the cache and refresh in the background, so a
    change shows up on the launch after next. Bump VERSION to force a clean reinstall. */
-const VERSION = 'booking-pass-v1';
+const VERSION = 'booking-pass-v2';
 
 const APP_SHELL = [
   './',
